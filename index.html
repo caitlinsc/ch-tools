@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheshire Horse — Tools</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#faf9f6;min-height:100vh;color:#1a1a1a}
+
+.header{background:linear-gradient(135deg,#1a3a1a,#2d5a27 60%,#3a6e32);color:#fff;padding:16px 28px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.header h1{font-size:18px;font-weight:700;letter-spacing:-0.3px}
+.header .sub{font-size:11px;opacity:0.65;margin-top:2px}
+.search-wrap{position:relative;flex:0 0 220px}
+.search-wrap input{width:100%;padding:7px 12px 7px 32px;border-radius:8px;border:none;background:rgba(255,255,255,0.15);color:#fff;font-size:12px;outline:none}
+.search-wrap input::placeholder{color:rgba(255,255,255,0.55)}
+.search-wrap input:focus{background:rgba(255,255,255,0.25)}
+.s-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;opacity:0.6;pointer-events:none}
+
+.toolbar{padding:12px 28px;background:#fff;border-bottom:1px solid #e8e5de;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.filter-label{font-size:11px;color:#999;margin-right:2px}
+.pill{padding:5px 13px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid #ddd;background:#faf9f6;color:#666;transition:all .15s}
+.pill:hover{border-color:#2d5a27;color:#2d5a27}
+.pill.active{background:#2d5a27;color:#fff;border-color:#2d5a27}
+.cnt{font-size:10px;margin-left:3px;opacity:0.75}
+
+.main{padding:22px 28px}
+.category{margin-bottom:28px}
+.category:last-child{margin-bottom:0}
+.cat-header{font-size:13px;font-weight:700;color:#2d5a27;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #e8e5de;display:flex;align-items:center;gap:8px}
+.cat-icon{font-size:15px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:14px}
+.empty-msg{text-align:center;padding:48px;color:#bbb;font-size:13px;grid-column:1/-1}
+
+.card{background:#fff;border:1px solid #e8e5de;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:9px;transition:box-shadow .15s,border-color .15s}
+.card:hover{border-color:#b8d4b0;box-shadow:0 2px 14px rgba(45,90,39,0.09)}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
+.card-name{font-size:13px;font-weight:600;color:#1a1a1a;line-height:1.35;flex:1}
+.type-badge{font-size:9px;font-weight:600;padding:3px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;flex-shrink:0}
+.badge-html{background:#e6f1fb;color:#185fa5}
+.badge-python{background:#eaf3de;color:#3b6d11}
+.badge-terminal{background:#faeeda;color:#854f0b}
+.badge-private{background:#f4f3ef;color:#888;font-size:8px;padding:2px 6px;border-radius:3px;margin-left:3px;vertical-align:middle}
+.card-desc{font-size:11px;color:#777;line-height:1.55;flex:1}
+.card-cmd{background:#f4f3ef;border-radius:6px;padding:7px 10px;display:flex;align-items:center;gap:6px;min-width:0}
+.cmd-text{font-size:10px;font-family:'Courier New',monospace;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.copy-btn{background:#eef4fa;color:#1a4a7a;border:1px solid #b0c8e8;border-radius:4px;font-size:9px;font-weight:600;padding:2px 8px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.copy-btn:hover{background:#d4e6f7}
+.card-note{font-size:10px;color:#aaa;margin-top:-3px}
+.card-action{display:block;width:100%;padding:8px;text-align:center;font-size:12px;font-weight:600;border-radius:7px;cursor:pointer;text-decoration:none;border:none;margin-top:auto}
+.action-open{background:#2d5a27;color:#fff}
+.action-open:hover{background:#245020}
+.action-cmd{background:#1a4a7a;color:#fff}
+.action-cmd:hover{background:#153d65}
+.action-private{background:#f4f3ef;color:#999;border:1px solid #e0ddd5;cursor:default}
+
+.toast{position:fixed;bottom:20px;right:20px;background:#1a1a1a;color:#fff;padding:9px 16px;border-radius:8px;font-size:12px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s;z-index:99}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>🐴 Cheshire Horse — Tools</h1>
+    <div class="sub">Internal tool dashboard</div>
+  </div>
+  <div class="search-wrap">
+    <span class="s-icon">🔍</span>
+    <input type="text" id="search" placeholder="Search tools..." oninput="render()">
+  </div>
+</div>
+<div class="toolbar">
+  <span class="filter-label">Filter:</span>
+  <button class="pill active" onclick="setFilter('all',this)">All<span class="cnt" id="cnt-all"></span></button>
+  <button class="pill" onclick="setFilter('html',this)">HTML<span class="cnt" id="cnt-html"></span></button>
+  <button class="pill" onclick="setFilter('python',this)">Python<span class="cnt" id="cnt-python"></span></button>
+  <button class="pill" onclick="setFilter('terminal',this)">Terminal<span class="cnt" id="cnt-terminal"></span></button>
+</div>
+<div class="main" id="main"></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CATEGORIES = [
+  { id: "product",   label: "Product & Inventory", icon: "📦" },
+  { id: "customers", label: "Customers",           icon: "👥" },
+  { id: "marketing", label: "Marketing",           icon: "📣" },
+  { id: "other",     label: "Other",               icon: "🔧" },
+];
+
+const TOOLS = [
+  // ── PRODUCT & INVENTORY ───────────────────────────────────
+  {
+    name: "Closeout Cleaner",
+    desc: "Matches a Salesforce closeout export against Compass inventory to identify OOS SKUs that need to be disabled.",
+    type: "html",
+    category: "product",
+    url: "product/closeout-cleaner/closeout-cleaner.html",
+  },
+  {
+    name: "Missing UPC / MFG Code Filler",
+    desc: "Enriches Salesforce export CSVs with missing UPC and MFG codes pulled from the Compass master file.",
+    type: "html",
+    category: "product",
+    url: "product/missing-upc-mfg-code/",
+  },
+  {
+    name: "Missing SKU",
+    desc: "Finds SKUs that are present in one system but missing from another — surfaces gaps before they cause import errors.",
+    type: "html",
+    category: "product",
+    url: "product/missing-sku/",
+  },
+  {
+    name: "Deallocation File Generator",
+    desc: "Generates the deallocation file needed to remove inventory allocations in SFCC.",
+    type: "html",
+    category: "product",
+    url: "product/deallocation/",
+  },
+  {
+    name: "SKU Onboarder",
+    desc: "Guides the new-SKU onboarding process — preps and validates product data before upload to SFCC.",
+    type: "html",
+    category: "product",
+    private: true,
+  },
+  {
+    name: "Shopify Inventory Converter",
+    desc: "Converts Compass inventory reports into upload-ready CSVs for Shopify's inventory import.",
+    type: "html",
+    category: "product",
+    url: "product/shopify-inventory-converter/",
+  },
+  {
+    name: "Google Feed Refresh",
+    desc: "Triggers a refresh of the Google Shopping product feed.",
+    type: "python",
+    category: "product",
+    private: true,
+    cmd: "python refresh.py",
+    note: "Run from the product/google-feed-refresh folder",
+  },
+  {
+    name: "Price Check",
+    desc: "Verifies product prices are consistent across systems before a sale or promotion goes live.",
+    type: "html",
+    category: "product",
+    private: true,
+  },
+  {
+    name: "RPH Review",
+    desc: "Reviews and validates RPH (retail price history) records for accuracy.",
+    type: "html",
+    category: "product",
+    private: true,
+  },
+  {
+    name: "Missing Image in ShipStation",
+    desc: "Identifies orders in ShipStation with missing product images so they can be resolved before packing.",
+    type: "python",
+    category: "product",
+    private: true,
+    cmd: "python app.py",
+    note: "Run from the product/missing-image-in-shipstation folder",
+  },
+
+  // ── CUSTOMERS ─────────────────────────────────────────────
+  {
+    name: "Store Address Scrubber",
+    desc: "Finds and removes store/warehouse addresses that ShipStation incorrectly saves to customer records in SFCC.",
+    type: "html",
+    category: "customers",
+    url: "customers/store-address-scrubber/",
+  },
+  {
+    name: "Rewards Account Creator",
+    desc: "Google Form → Eagle → PSM pipeline for creating and tracking new loyalty reward accounts.",
+    type: "python",
+    category: "customers",
+    private: true,
+    cmd: "python app.py",
+    note: "Run from the customers/rewards-customer-upload folder",
+  },
+  {
+    name: "Rewards Customer Upload",
+    desc: "Prepares and uploads new rewards customer records into the loyalty system.",
+    type: "html",
+    category: "customers",
+    private: true,
+  },
+  {
+    name: "Astro Loyalty Redemptions",
+    desc: "Handles loyalty redemption processing through the Astro platform.",
+    type: "html",
+    category: "customers",
+    url: "customers/astro-loyalty-redemptions/",
+  },
+  {
+    name: "Mailing List Cleaner",
+    desc: "Cleans and deduplicates mailing list exports — removes invalid emails, formats addresses consistently.",
+    type: "html",
+    category: "customers",
+    url: "customers/mailing-list-cleaner/",
+  },
+
+  // ── MARKETING ─────────────────────────────────────────────
+  {
+    name: "Sale Category Builder",
+    desc: "Accepts SFCC product exports, assigns discount tiers (10/15/20%), filters offline rows, and exports formatted files for Logical Position.",
+    type: "html",
+    category: "marketing",
+    url: "marketing/sale-category-builder/",
+  },
+  {
+    name: "Coupon Serials",
+    desc: "Confirms that coupon serial numbers are present and valid in Salesforce.",
+    type: "html",
+    category: "marketing",
+    private: true,
+  },
+
+  // ── OTHER ─────────────────────────────────────────────────
+  {
+    name: "Logo Upload",
+    desc: "Manages logo image uploads and prepares assets for use in SFCC.",
+    type: "html",
+    category: "other",
+    private: true,
+  },
+];
+
+let activeFilter = "all";
+
+function setFilter(f, el) {
+  activeFilter = f;
+  document.querySelectorAll(".pill").forEach(p => p.classList.remove("active"));
+  el.classList.add("active");
+  render();
+}
+
+function render() {
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const main = document.getElementById("main");
+
+  // Update filter counts
+  ["all","html","python","terminal"].forEach(t => {
+    const n = TOOLS.filter(tool =>
+      (t === "all" || tool.type === t) &&
+      (!q || tool.name.toLowerCase().includes(q) || tool.desc.toLowerCase().includes(q))
+    ).length;
+    const el = document.getElementById("cnt-" + t);
+    if (el) el.textContent = n ? " " + n : "";
+  });
+
+  const filtered = TOOLS.filter(tool =>
+    (activeFilter === "all" || tool.type === activeFilter) &&
+    (!q || tool.name.toLowerCase().includes(q) || tool.desc.toLowerCase().includes(q))
+  );
+
+  if (!filtered.length) {
+    main.innerHTML = '<div class="empty-msg" style="text-align:center;padding:48px;color:#bbb;font-size:13px;">No tools match your search.</div>';
+    return;
+  }
+
+  const badgeClass = { html:"badge-html", python:"badge-python", terminal:"badge-terminal" };
+  const badgeLabel = { html:"HTML", python:"Python", terminal:"Terminal" };
+
+  let html = "";
+
+  CATEGORIES.forEach(cat => {
+    const catTools = filtered.filter(t => t.category === cat.id);
+    if (!catTools.length) return;
+
+    html += `<div class="category">`;
+    html += `<div class="cat-header"><span class="cat-icon">${cat.icon}</span>${cat.label}</div>`;
+    html += `<div class="grid">`;
+
+    catTools.forEach(tool => {
+      const typeBadge = `<span class="type-badge ${badgeClass[tool.type]}">${badgeLabel[tool.type]}</span>`;
+      const privateBadge = tool.private ? `<span class="badge-private">private</span>` : "";
+
+      let cmdBlock = "";
+      if (tool.cmd) {
+        const safeCmd = tool.cmd.replace(/'/g, "\\'");
+        cmdBlock = `<div class="card-cmd">
+          <span class="cmd-text">${esc(tool.cmd)}</span>
+          <button class="copy-btn" onclick="copyCmd(event,'${safeCmd}')">Copy</button>
+        </div>`;
+        if (tool.note) cmdBlock += `<div class="card-note">${esc(tool.note)}</div>`;
+      }
+
+      let action = "";
+      if (tool.private && !tool.url && !tool.cmd) {
+        action = `<div class="card-action action-private">Private repo</div>`;
+      } else if (tool.url) {
+        action = `<a href="${esc(tool.url)}" target="_blank" rel="noopener" class="card-action action-open">Open tool →</a>`;
+      } else if (tool.cmd) {
+        const safeCmd = tool.cmd.replace(/'/g, "\\'");
+        action = `<button class="card-action action-cmd" onclick="copyCmd(event,'${safeCmd}')">Copy command</button>`;
+      }
+
+      html += `<div class="card">
+        <div class="card-top">
+          <div class="card-name">${esc(tool.name)}${privateBadge}</div>
+          ${typeBadge}
+        </div>
+        <div class="card-desc">${esc(tool.desc)}</div>
+        ${cmdBlock}
+        ${action}
+      </div>`;
+    });
+
+    html += `</div></div>`;
+  });
+
+  main.innerHTML = html;
+}
+
+function copyCmd(e, cmd) {
+  e.stopPropagation();
+  navigator.clipboard.writeText(cmd).then(() => showToast("Copied: " + cmd));
+}
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;");
+}
+
+render();
+</script>
+</body>
+</html>
