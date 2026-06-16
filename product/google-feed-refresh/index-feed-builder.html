@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Google Shopping Feed Builder</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#faf9f6;min-height:100vh;color:#1a1a1a}
+.header{background:linear-gradient(135deg,#1a3a1a,#2d5a27 60%,#3a6e32);color:#fff;padding:16px 28px}
+.header h1{font-size:18px;font-weight:700;letter-spacing:-0.3px}
+.header .sub{font-size:11px;opacity:0.65;margin-top:2px}
+.container{max-width:860px;margin:0 auto;padding:24px 28px}
+
+.drop-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.drop-zone{border:2px dashed #ccc;border-radius:12px;padding:32px 20px;text-align:center;cursor:pointer;transition:all .15s;background:#fff}
+.drop-zone:hover,.drop-zone.dragover{border-color:#2d5a27;background:#f0f7ef}
+.drop-zone.loaded{border-color:#2d5a27;border-style:solid;background:#f0f7ef}
+.drop-zone .icon{font-size:28px;margin-bottom:8px}
+.drop-zone .label{font-size:13px;font-weight:600;color:#1a1a1a}
+.drop-zone .hint{font-size:11px;color:#999;margin-top:4px}
+.drop-zone .filename{font-size:11px;color:#2d5a27;font-weight:600;margin-top:6px;word-break:break-all}
+.drop-zone input{display:none}
+
+.btn{padding:10px 24px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.btn-primary{background:#2d5a27;color:#fff}
+.btn-primary:hover:not(:disabled){background:#245020}
+.btn-primary:disabled{opacity:0.4;cursor:not-allowed}
+.btn-download{background:#1a4a7a;color:#fff;margin-left:10px}
+.btn-download:hover{background:#153d65}
+
+.actions{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+
+.log{background:#1a1a1a;color:#ccc;border-radius:10px;padding:16px 20px;font-family:'Courier New',monospace;font-size:11px;line-height:1.7;max-height:400px;overflow-y:auto;display:none;margin-bottom:20px}
+.log .info{color:#8bc48b}
+.log .warn{color:#e8c96a}
+.log .error{color:#e87070}
+.log .bold{color:#fff;font-weight:700}
+
+.summary{background:#fff;border:1px solid #e8e5de;border-radius:12px;padding:20px;display:none;margin-bottom:20px}
+.summary h3{font-size:14px;font-weight:700;margin-bottom:12px;color:#2d5a27}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.stat{background:#faf9f6;border-radius:8px;padding:10px 14px}
+.stat .val{font-size:20px;font-weight:700;color:#1a1a1a}
+.stat .lbl{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}
+
+.preview{background:#fff;border:1px solid #e8e5de;border-radius:12px;padding:20px;display:none}
+.preview h3{font-size:14px;font-weight:700;margin-bottom:12px;color:#2d5a27}
+.preview-table-wrap{overflow-x:auto}
+.preview table{border-collapse:collapse;font-size:10px;white-space:nowrap;width:100%}
+.preview th{background:#f4f3ef;padding:6px 10px;text-align:left;font-weight:600;border-bottom:2px solid #e8e5de;position:sticky;top:0}
+.preview td{padding:5px 10px;border-bottom:1px solid #f0efeb;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.preview tr:hover td{background:#faf9f6}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📦 Google Shopping Feed Builder</h1>
+  <div class="sub">SFCC Catalog XML + Price Book XML → Google Merchant Center TSV</div>
+</div>
+
+<div class="container">
+  <div class="drop-row">
+    <div class="drop-zone" id="dz-catalog" onclick="this.querySelector('input').click()">
+      <div class="icon">📋</div>
+      <div class="label">Catalog XML</div>
+      <div class="hint">SFCC catalog export</div>
+      <div class="filename" id="fn-catalog"></div>
+      <input type="file" accept=".xml" onchange="loadFile(this,'catalog')">
+    </div>
+    <div class="drop-zone" id="dz-pricebook" onclick="this.querySelector('input').click()">
+      <div class="icon">💲</div>
+      <div class="label">Price Book XML</div>
+      <div class="hint">SFCC price book export</div>
+      <div class="filename" id="fn-pricebook"></div>
+      <input type="file" accept=".xml" onchange="loadFile(this,'pricebook')">
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="btn-build" onclick="buildFeed()" disabled>Build Feed</button>
+    <button class="btn btn-download" id="btn-dl" onclick="downloadFeed()" style="display:none">Download TSV</button>
+    <span id="status" style="font-size:11px;color:#999"></span>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <div class="summary" id="summary">
+    <h3>Feed Summary</h3>
+    <div class="stat-grid" id="stats"></div>
+  </div>
+
+  <div class="preview" id="preview">
+    <h3>Preview (first 50 rows)</h3>
+    <div class="preview-table-wrap" id="preview-table"></div>
+  </div>
+</div>
+
+<script>
+// ─── Config ────────────────────────────────────────────────
+const SITE_URL = "https://www.cheshirehorse.com";
+const IMAGE_BASE = "https://www.cheshirehorse.com/on/demandware.static/-/Sites-master-cheshirehorse/default/images/products";
+const NS_CAT = "http://www.demandware.com/xml/impex/catalog/2006-10-31";
+const NS_PB = "http://www.demandware.com/xml/impex/pricebook/2006-10-31";
+const LIST_PRICE_BOOK = "ch-list-prices";
+const SALE_PRICE_BOOKS = ["ch-consignment-demo-saddle-pricebook", "ch-closeout-pricebook"];
+const SITE_ID = "CheshireHorse";
+
+const OVERSIZE_SURCHARGE = {
+  "Oversize Group 1": 6.50, "Oversize Group 2": 11.00, "Oversize Group 3": 15.50,
+  "Oversize Group 4": 18.00, "Oversize Group 5": 27.50, "Oversize Group 6": 38.50,
+  "Oversize Group 7": 55.00,
+};
+const OVERWEIGHT_BRACKETS = [
+  [5,7],[10,9],[15,11],[20,14.5],[25,20],[30,24],[35,29],[40,31],[45,35],[50,36],[55,37],[60,39],[65,40],[70,41]
+];
+
+const FIELDNAMES = ["id","title","description","link","image_link","availability","price","sale_price","shipping","brand","gtin","mpn","condition","item_group_id","color","size","product_type"];
+
+// ─── State ─────────────────────────────────────────────────
+let files = { catalog: null, pricebook: null };
+let feedTSV = null;
+
+// ─── File Loading ──────────────────────────────────────────
+function loadFile(input, type) {
+  const file = input.files[0];
+  if (!file) return;
+  files[type] = file;
+  document.getElementById("fn-" + type).textContent = file.name;
+  document.getElementById("dz-" + type).classList.add("loaded");
+  document.getElementById("btn-build").disabled = !(files.catalog && files.pricebook);
+}
+
+// Drag and drop
+document.querySelectorAll(".drop-zone").forEach(dz => {
+  const type = dz.id.replace("dz-", "");
+  dz.addEventListener("dragover", e => { e.preventDefault(); dz.classList.add("dragover"); });
+  dz.addEventListener("dragleave", () => dz.classList.remove("dragover"));
+  dz.addEventListener("drop", e => {
+    e.preventDefault();
+    dz.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      files[type] = file;
+      document.getElementById("fn-" + type).textContent = file.name;
+      dz.classList.add("loaded");
+      document.getElementById("btn-build").disabled = !(files.catalog && files.pricebook);
+    }
+  });
+});
+
+// ─── Logging ───────────────────────────────────────────────
+const logEl = document.getElementById("log");
+function log(msg, cls = "") {
+  logEl.style.display = "block";
+  logEl.innerHTML += `<div class="${cls}">${esc(msg)}</div>`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+// ─── XML Helpers ───────────────────────────────────────────
+function getChildrenByLocalName(el, localName) {
+  const results = [];
+  for (const child of el.children) {
+    if (child.localName === localName) results.push(child);
+  }
+  return results;
+}
+
+function getChildByLocalName(el, localName) {
+  for (const child of el.children) {
+    if (child.localName === localName) return child;
+  }
+  return null;
+}
+
+function getText(el, tagName, lang = "x-default") {
+  const children = getChildrenByLocalName(el, tagName);
+  for (const child of children) {
+    if (child.getAttribute("xml:lang") === lang) return child.textContent || "";
+    if (!child.getAttribute("xml:lang") && !child.getAttribute("site-id")) return child.textContent || "";
+  }
+  const first = getChildByLocalName(el, tagName);
+  if (first && !first.getAttribute("site-id")) return first.textContent || "";
+  return "";
+}
+
+function getFlag(el, tagName) {
+  const children = getChildrenByLocalName(el, tagName);
+  for (const child of children) {
+    if (child.getAttribute("site-id") === SITE_ID) return child.textContent === "true";
+  }
+  const first = getChildByLocalName(el, tagName);
+  if (first && !first.getAttribute("site-id")) return first.textContent === "true";
+  return false;
+}
+
+function getImagePath(el) {
+  const images = getChildByLocalName(el, "images");
+  if (!images) return "";
+  const groups = getChildrenByLocalName(images, "image-group");
+  for (const ig of groups) {
+    if (ig.getAttribute("view-type") === "large") {
+      const img = getChildByLocalName(ig, "image");
+      if (img) return img.getAttribute("path") || "";
+    }
+  }
+  for (const ig of groups) {
+    const img = getChildByLocalName(ig, "image");
+    if (img) return img.getAttribute("path") || "";
+  }
+  return "";
+}
+
+function getCustomAttr(el, attrId) {
+  const cas = getChildByLocalName(el, "custom-attributes");
+  if (!cas) return "";
+  for (const ca of getChildrenByLocalName(cas, "custom-attribute")) {
+    if (ca.getAttribute("attribute-id") === attrId) {
+      const vals = getChildrenByLocalName(ca, "value");
+      if (vals.length) return vals[0].textContent || "";
+      return ca.textContent || "";
+    }
+  }
+  return "";
+}
+
+function getCustomAttrList(el, attrId) {
+  const cas = getChildByLocalName(el, "custom-attributes");
+  if (!cas) return [];
+  for (const ca of getChildrenByLocalName(cas, "custom-attribute")) {
+    if (ca.getAttribute("attribute-id") === attrId) {
+      const vals = getChildrenByLocalName(ca, "value");
+      if (vals.length) return vals.map(v => v.textContent).filter(Boolean);
+      if (ca.textContent) return [ca.textContent];
+    }
+  }
+  return [];
+}
+
+function getVariantIds(el) {
+  const variations = getChildByLocalName(el, "variations");
+  if (!variations) return [];
+  const variants = getChildByLocalName(variations, "variants");
+  if (!variants) return [];
+  return getChildrenByLocalName(variants, "variant").map(v => v.getAttribute("product-id"));
+}
+
+function stripHtml(text) {
+  if (!text) return "";
+  const tmp = document.createElement("div");
+  tmp.innerHTML = text;
+  return tmp.textContent.replace(/\s+/g, " ").trim();
+}
+
+function slugify(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function buildImageUrl(path) {
+  if (!path) return "";
+  return path.startsWith("/") ? IMAGE_BASE + path : IMAGE_BASE + "/" + path;
+}
+
+function getOverweightSurcharge(weight) {
+  if (weight <= 0) return 0;
+  for (const [maxW, surcharge] of OVERWEIGHT_BRACKETS) {
+    if (weight <= maxW) return surcharge;
+  }
+  return 0;
+}
+
+// ─── Parsers ───────────────────────────────────────────────
+function parsePricebooks(xmlDoc) {
+  log("Parsing price books...");
+  const prices = {};
+  const pricebooks = xmlDoc.getElementsByTagNameNS(NS_PB, "pricebook");
+
+  for (const pb of pricebooks) {
+    const header = pb.getElementsByTagNameNS(NS_PB, "header")[0];
+    if (!header) continue;
+    const pbId = header.getAttribute("pricebook-id");
+    if (!pbId) continue;
+    prices[pbId] = {};
+
+    const tables = pb.getElementsByTagNameNS(NS_PB, "price-table");
+    for (const table of tables) {
+      const productId = table.getAttribute("product-id");
+      const amountEl = table.getElementsByTagNameNS(NS_PB, "amount")[0];
+      if (amountEl && amountEl.textContent) {
+        const val = parseFloat(amountEl.textContent);
+        if (!isNaN(val)) prices[pbId][productId] = val;
+      }
+    }
+    log(`  Price book '${pbId}': ${Object.keys(prices[pbId]).length} entries`, "info");
+  }
+  return prices;
+}
+
+function parseCatalog(xmlDoc) {
+  log("Parsing catalog...");
+  const products = {};
+  const productEls = xmlDoc.getElementsByTagNameNS(NS_CAT, "product");
+  let count = 0;
+
+  for (const elem of productEls) {
+    const pid = elem.getAttribute("product-id");
+    if (!pid) continue;
+    count++;
+
+    const weightText = getCustomAttr(elem, "shipWeight") || getText(elem, "unit-quantity") || "0";
+    let shipWeight = parseFloat(weightText);
+    if (isNaN(shipWeight)) shipWeight = 0;
+
+    products[pid] = {
+      id: pid,
+      name: getText(elem, "display-name"),
+      short_desc: stripHtml(getText(elem, "short-description")),
+      long_desc: stripHtml(getText(elem, "long-description")),
+      brand: getText(elem, "brand") || "",
+      upc: getText(elem, "upc") || "",
+      online: getFlag(elem, "online-flag"),
+      available: getFlag(elem, "available-flag"),
+      image_path: getImagePath(elem),
+      variant_ids: getVariantIds(elem),
+      color: getCustomAttr(elem, "color") || getCustomAttr(elem, "color_horse_clothing") || "",
+      size: getCustomAttr(elem, "size") || getCustomAttr(elem, "size_footwear") || getCustomAttr(elem, "size_apparel") || getCustomAttr(elem, "size_horse_clothing") || "",
+      manufacturer_sku: getText(elem, "manufacturer-sku") || "",
+      ship_weight: shipWeight,
+      shipping_groups: getCustomAttrList(elem, "shipperHQShippingGroups"),
+      category: (() => {
+        const cc = getChildByLocalName(elem, "classification-category");
+        return cc ? (cc.textContent || "") : "";
+      })(),
+    };
+  }
+  log(`  Total products parsed: ${count}`, "info");
+  return products;
+}
+
+// ─── Feed Builder ──────────────────────────────────────────
+async function buildFeed() {
+  const btn = document.getElementById("btn-build");
+  btn.disabled = true;
+  document.getElementById("btn-dl").style.display = "none";
+  document.getElementById("summary").style.display = "none";
+  document.getElementById("preview").style.display = "none";
+  logEl.innerHTML = "";
+  feedTSV = null;
+
+  document.getElementById("status").textContent = "Reading files...";
+
+  try {
+    const [catText, pbText] = await Promise.all([
+      files.catalog.text(),
+      files.pricebook.text(),
+    ]);
+
+    document.getElementById("status").textContent = "Parsing XML...";
+    await sleep(10);
+
+    const parser = new DOMParser();
+    const catDoc = parser.parseFromString(catText, "application/xml");
+    const pbDoc = parser.parseFromString(pbText, "application/xml");
+
+    // Check for parse errors
+    if (catDoc.querySelector("parsererror")) {
+      log("ERROR: Catalog XML is not valid XML.", "error");
+      btn.disabled = false;
+      document.getElementById("status").textContent = "";
+      return;
+    }
+    if (pbDoc.querySelector("parsererror")) {
+      log("ERROR: Price book XML is not valid XML.", "error");
+      btn.disabled = false;
+      document.getElementById("status").textContent = "";
+      return;
+    }
+
+    const prices = parsePricebooks(pbDoc);
+    const listPrices = prices[LIST_PRICE_BOOK] || {};
+    const salePriceMaps = SALE_PRICE_BOOKS.map(pb => prices[pb] || {});
+
+    document.getElementById("status").textContent = "Parsing catalog...";
+    await sleep(10);
+
+    const products = parseCatalog(catDoc);
+
+    // Build master → variant relationships
+    const masterOf = {};
+    for (const [pid, prod] of Object.entries(products)) {
+      for (const vid of prod.variant_ids) {
+        masterOf[vid] = pid;
+      }
+    }
+    const masters = new Set(Object.keys(products).filter(pid => products[pid].variant_ids.length > 0));
+
+    log(`\nMasters: ${masters.size}`, "bold");
+    log(`Variants: ${Object.keys(masterOf).length}`, "bold");
+    log(`Standalone: ${Object.keys(products).length - masters.size - Object.keys(masterOf).length}`, "bold");
+
+    document.getElementById("status").textContent = "Building feed rows...";
+    await sleep(10);
+
+    // Build feed rows
+    const feedRows = [];
+    const skipped = {};
+
+    for (const [pid, prod] of Object.entries(products)) {
+      if (masters.has(pid)) { skipped.is_master = (skipped.is_master || 0) + 1; continue; }
+
+      const masterId = masterOf[pid] || null;
+      const master = masterId ? products[masterId] : null;
+
+      const name = prod.name || (master ? master.name : "");
+      const shortDesc = prod.short_desc || (master ? master.short_desc : "");
+      const brand = prod.brand || (master ? master.brand : "");
+      const imagePath = prod.image_path || (master ? master.image_path : "");
+      const category = prod.category || (master ? master.category : "");
+      const upc = prod.upc;
+
+      let listPrice = listPrices[pid] ?? (masterId ? listPrices[masterId] ?? null : null);
+      let salePrice = null;
+      for (const spMap of salePriceMaps) {
+        salePrice = spMap[pid] ?? null;
+        if (salePrice != null) break;
+      }
+      if (salePrice == null && masterId) {
+        for (const spMap of salePriceMaps) {
+          salePrice = spMap[masterId] ?? null;
+          if (salePrice != null) break;
+        }
+      }
+
+      if (!name) { skipped.no_name = (skipped.no_name || 0) + 1; continue; }
+      if (!prod.online) { skipped.not_online = (skipped.not_online || 0) + 1; continue; }
+      if (!prod.available) { skipped.not_available = (skipped.not_available || 0) + 1; continue; }
+      if (listPrice == null && salePrice == null) { skipped.no_price = (skipped.no_price || 0) + 1; continue; }
+      if (!imagePath) { skipped.no_image = (skipped.no_image || 0) + 1; continue; }
+
+      const effectivePrice = listPrice != null ? listPrice : salePrice;
+      const effectiveSale = (salePrice != null && listPrice != null && salePrice < listPrice) ? salePrice : null;
+
+      let description = shortDesc || name;
+      if (description.length > 5000) description = description.slice(0, 4997) + "...";
+
+      let title = name;
+      const variantAttrs = [];
+      if (prod.color) variantAttrs.push(prod.color);
+      if (prod.size) variantAttrs.push(prod.size);
+      if (variantAttrs.length) title = `${name} - ${variantAttrs.join(" / ")}`;
+      if (title.length > 150) title = title.slice(0, 147) + "...";
+
+      const urlPid = masterId || pid;
+      const link = `${SITE_URL}/p/${slugify(name)}/${urlPid}.html`;
+      const imageLink = buildImageUrl(imagePath);
+      const gtin = (upc && upc !== "0") ? upc : "";
+
+      const shippingGroups = prod.shipping_groups.length ? prod.shipping_groups : (master ? master.shipping_groups : []);
+      const shipWeight = prod.ship_weight || (master ? master.ship_weight : 0);
+
+      const baseShipping = effectivePrice >= 99 ? 0 : 8;
+      let surcharge = 0;
+      for (const group of shippingGroups) {
+        if (OVERSIZE_SURCHARGE[group] != null) {
+          surcharge = Math.max(surcharge, OVERSIZE_SURCHARGE[group]);
+        } else if (group === "Overweight" && shipWeight > 0) {
+          surcharge = Math.max(surcharge, getOverweightSurcharge(shipWeight));
+        }
+      }
+
+      feedRows.push({
+        id: pid,
+        title,
+        description,
+        link,
+        image_link: imageLink,
+        availability: prod.available ? "in_stock" : "out_of_stock",
+        price: effectivePrice.toFixed(2) + " USD",
+        sale_price: effectiveSale != null ? effectiveSale.toFixed(2) + " USD" : "",
+        shipping: `US:::${(baseShipping + surcharge).toFixed(2)} USD`,
+        brand,
+        gtin,
+        mpn: prod.manufacturer_sku || pid,
+        condition: "new",
+        item_group_id: masterId || "",
+        color: prod.color,
+        size: prod.size,
+        product_type: category ? category.replace(/-/g, " > ").replace(/_/g, " ") : "",
+      });
+    }
+
+    // Report
+    log(`\n=== Feed Summary ===`, "bold");
+    log(`Total feed rows: ${feedRows.length}`, "info");
+    log(`\nSkipped:`, "bold");
+    const sortedSkipped = Object.entries(skipped).sort((a, b) => b[1] - a[1]);
+    for (const [reason, count] of sortedSkipped) {
+      log(`  ${reason}: ${count}`, "warn");
+    }
+
+    if (!feedRows.length) {
+      log("ERROR: No rows to write!", "error");
+      btn.disabled = false;
+      document.getElementById("status").textContent = "";
+      return;
+    }
+
+    // Build TSV
+    const lines = [FIELDNAMES.join("\t")];
+    for (const row of feedRows) {
+      lines.push(FIELDNAMES.map(f => String(row[f] || "").replace(/\t/g, " ").replace(/\n/g, " ")).join("\t"));
+    }
+    feedTSV = lines.join("\n");
+
+    const sizeMB = (new Blob([feedTSV]).size / 1024 / 1024).toFixed(1);
+    log(`\nFeed ready: ${sizeMB} MB`, "info");
+
+    // Show summary
+    const statsEl = document.getElementById("stats");
+    statsEl.innerHTML = `
+      <div class="stat"><div class="val">${feedRows.length.toLocaleString()}</div><div class="lbl">Feed Rows</div></div>
+      <div class="stat"><div class="val">${masters.size.toLocaleString()}</div><div class="lbl">Masters</div></div>
+      <div class="stat"><div class="val">${Object.keys(masterOf).length.toLocaleString()}</div><div class="lbl">Variants</div></div>
+      <div class="stat"><div class="val">${sizeMB} MB</div><div class="lbl">File Size</div></div>
+      ${sortedSkipped.map(([r, c]) => `<div class="stat"><div class="val">${c.toLocaleString()}</div><div class="lbl">Skipped: ${r.replace(/_/g, " ")}</div></div>`).join("")}
+    `;
+    document.getElementById("summary").style.display = "block";
+
+    // Show preview
+    const previewRows = feedRows.slice(0, 50);
+    let tableHtml = "<table><thead><tr>" + FIELDNAMES.map(f => `<th>${esc(f)}</th>`).join("") + "</tr></thead><tbody>";
+    for (const row of previewRows) {
+      tableHtml += "<tr>" + FIELDNAMES.map(f => `<td title="${esc(String(row[f]||""))}">${esc(String(row[f] || ""))}</td>`).join("") + "</tr>";
+    }
+    tableHtml += "</tbody></table>";
+    document.getElementById("preview-table").innerHTML = tableHtml;
+    document.getElementById("preview").style.display = "block";
+
+    document.getElementById("btn-dl").style.display = "inline-block";
+    document.getElementById("status").textContent = "Done!";
+
+  } catch (err) {
+    log(`ERROR: ${err.message}`, "error");
+    console.error(err);
+    document.getElementById("status").textContent = "Error — check log";
+  }
+
+  btn.disabled = false;
+}
+
+function downloadFeed() {
+  if (!feedTSV) return;
+  const blob = new Blob([feedTSV], { type: "text/tab-separated-values" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "google_shopping_feed.tsv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
