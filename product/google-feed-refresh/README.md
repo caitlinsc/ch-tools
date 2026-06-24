@@ -4,7 +4,13 @@ Generates a Google Shopping-compliant TSV feed from Salesforce Commerce Cloud (B
 
 Built as a patch solution while the automated SFTP feed job is broken.
 
-## Usage
+Part of the [ch-tools](https://github.com/caitlinsc/ch-tools) monorepo.
+
+## Usage — browser tool (recommended)
+
+Open `index.html`. Drop in the catalog XML and price book XML exports, click **Build Feed**, review the summary/preview, and download the resulting `.tsv`. Runs entirely client-side — nothing is uploaded anywhere — and mirrors the same parsing and filtering logic as `build_feed.py` below.
+
+## Usage — Python script (alternative / scriptable)
 
 ```bash
 python build_feed.py catalog.xml pricebook.xml output.tsv
@@ -19,6 +25,8 @@ python build_feed.py \
   pricebooks.xml \
   google_shopping_feed.tsv
 ```
+
+`start_feed_builder.bat` runs the script with a double-click on Windows (prompts for input via the script's own CLI handling).
 
 Then upload `google_shopping_feed.tsv` as a **primary feed** in Google Merchant Center.
 
@@ -63,14 +71,8 @@ Then upload `google_shopping_feed.tsv` as a **primary feed** in Google Merchant 
 
 - **Images**: The feed uses hashless SFCC static URLs as placeholders. Google's crawler picks up the real images from `og:image` tags on your product pages within 24-72 hours.
 - **Shipping**: Configure shipping rules at the account level in GMC (Settings → Shipping and returns) rather than in the feed.
-- **No dependencies**: Uses only Python standard library (xml, csv, argparse). Python 3.6+.
+- **No dependencies**: The Python script uses only the standard library (xml, csv, argparse). Python 3.6+. The browser tool has no dependencies at all — just open `index.html`.
 
 ## Site configuration
 
-Edit the constants at the top of `build_feed.py` to adapt for a different SFCC site:
-
-- `SITE_URL` — storefront base URL
-- `IMAGE_BASE` — static image URL base
-- `LIST_PRICE_BOOK` — price book ID for list prices
-- `SALE_PRICE_BOOKS` — price book IDs for sale prices
-- `SITE_ID` — SFCC site ID for site-specific flags
+Both the Python script and the browser tool define the same constants near the top of the file (`SITE_URL`, `IMAGE_BASE`, `LIST_PRICE_BOOK`, `SALE_PRICE_BOOKS`, `SITE_ID`). Edit both `build_feed.py` and `index.html` if adapting this for a different SFCC site — they aren't shared, so a change in one won't propagate to the other.
