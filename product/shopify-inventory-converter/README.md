@@ -12,21 +12,20 @@ A single-page tool for converting Compass inventory reports into upload-ready CS
 
 ## Quantity modes
 
-- **On Hand** — sets Shopify inventory to the current on-hand count from Compass (recommended for full syncs)
-- **Available** — uses the available quantity (on hand minus committed), useful if you want to exclude reserved stock
+- **On Hand (overwrite current stock)** — sets Shopify inventory to the current on-hand count from Compass (recommended for full syncs)
+- **Available (on hand minus committed)** — uses the available quantity, useful if you want to exclude reserved stock
 
 ## Column mapping
 
 | Compass | Shopify |
 |---|---|
-| Item Number | SKU, Handle |
-| Item Description | Title |
+| Item Number | SKU, Handle (Handle is left blank — see note) |
 | On Hand | On hand (new) |
 | Incoming | Incoming (not editable) |
 | Committed | Committed (not editable) |
 | Available | Available (not editable) |
 
-Option fields (Option1/2/3), HS Code, and COO are left blank so Shopify ignores them on import.
+`Handle`, `Title`, Option fields (Option1/2/3), HS Code, and COO are always left blank in the output, so Shopify ignores them on import. **Note:** the upload screen's hint text mentions an `Item Description` column, but the tool doesn't currently read or map it anywhere — `Title` stays blank even if that column is present in your Compass export. If you need product titles in the output, this is the line to fix in `index.html`.
 
 ## Uploading to Shopify
 
@@ -35,4 +34,4 @@ In your Shopify admin: **Products → Inventory → Import** — upload the down
 ## Notes
 
 - All processing happens in the browser — no data is uploaded anywhere
-- Requires a CSV export from Compass with at minimum `Item Number`, `Item Description`, and `On Hand` columns
+- Requires a CSV export from Compass with at minimum `Item Number` and `On Hand` columns. `Incoming` and `Committed` are mapped automatically if present.
