@@ -35,17 +35,10 @@ jobs:
         env:
           STATICRYPT_PASSWORD: ${{ secrets.CH_TOOLS_PW }}
         run: |
-          echo "staticrypt version: $(staticrypt --version)"
           if [ -z "$STATICRYPT_PASSWORD" ]; then
-            echo "ERROR: STATICRYPT_PASSWORD is empty — check the SITE_PASSWORD secret"
+            echo "ERROR: STATICRYPT_PASSWORD is empty"
             exit 1
           fi
-          TEMPLATE="$(pwd)/.staticrypt-template.html"
-          echo "Template path: $TEMPLATE"
-          echo "Template exists: $(test -f "$TEMPLATE" && echo yes || echo NO)"
-          echo "Testing template flag directly:"
-          staticrypt ./index.html --password "$STATICRYPT_PASSWORD" --short -f "$TEMPLATE" --template-title "Test" --remember 1 -d /tmp 2>&1
-          grep -c "056A45" /tmp/index.html && echo "Template WORKING" || echo "Template NOT applied"
           find . -name "*.html" \
             -not -path "./.git/*" \
             -not -path "./node_modules/*" \
@@ -56,14 +49,16 @@ jobs:
                 --password "$STATICRYPT_PASSWORD" \
                 -d "$(dirname "$f")" \
                 --short \
-                -f "$TEMPLATE" \
                 --template-title "Cheshire Horse Tools" \
                 --template-instructions "Enter the tools password to continue." \
+                --template-color-primary "#056A45" \
+                --template-color-secondary "#034a31" \
                 --remember 1 \
                 || { echo "FAILED on $f"; exit 1; }
             done
-          echo "Done. Checking for brand color in root index.html:"
-          grep -c "056A45" ./index.html || echo "brand color NOT found"
+
+      - name: Inject branded header
+        run: python3 .github/inject_header.py
 
       - uses: actions/configure-pages@v5
 
