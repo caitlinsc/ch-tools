@@ -205,8 +205,11 @@ thead th {
 thead th.right { text-align: right; }
 thead th.center { text-align: center; }
 tbody tr:hover { background: #f8fafc; }
-tbody tr.qoh-flag { background: #fff8e8; }
-tbody tr.qoh-flag:hover { background: #fff3d0; }
+tbody tr.qoh-flag td.qoh-cell {
+  color: #b07d12;
+  font-weight: 700;
+  background: #fff8e8;
+}
 tbody tr.manual-row { background: #f0f8ff; }
 tbody tr.manual-row:hover { background: #e6f3ff; }
 tbody td { padding: 9px 14px; border-bottom: 1px solid #f0f3f7; white-space: nowrap; vertical-align: middle; }
@@ -237,10 +240,6 @@ td.muted { color: #8899aa; font-size: 13px; }
   border-color: #056A45;
   background: #fff;
   box-shadow: 0 0 0 2px rgba(5,106,69,0.12);
-}
-tr.qoh-flag .post-qty-input {
-  border-color: #e8c840;
-  background: #fffbee;
 }
 
 /* ── Remove manual row button ── */
@@ -617,15 +616,14 @@ function renderPreview() {
     const comStr  = _committed > 0 ? _committed : '—';
     const avgStr  = _avg > 0 ? _avg.toFixed(1) : '—';
     const currentQty = postQtyOverrides[sku] !== undefined ? postQtyOverrides[sku] : _postQty;
-    const rowCls  = _qohFlag ? 'qoh-flag' : '';
-    const flag    = _qohFlag ? ' <span class="qoh-badge" title="Only 1 in stock">&#9888;</span>' : '';
+    const flag = _qohFlag ? ' <span class="qoh-badge" title="Only 1 in stock">&#9888;</span>' : '';
 
-    return `<tr class="${rowCls}">
+    return `<tr>
       <td class="desc" title="${desc.replace(/"/g,'&quot;')}">${desc}${flag}</td>
       <td>${sku}</td>
       <td class="muted">${mfgPart}</td>
       <td class="muted">${upc}</td>
-      <td class="right">${_qoh}</td>
+      <td class="right${_qohFlag ? ' qoh-cell' : ''}">${_qoh}</td>
       <td class="right muted">${qoo}</td>
       <td class="right muted">${comStr}</td>
       <td class="right">${retail}</td>
