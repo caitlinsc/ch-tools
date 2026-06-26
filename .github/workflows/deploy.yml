@@ -41,15 +41,14 @@ jobs:
             -not -path "./node_modules/*" \
             | while read f; do
               echo "Encrypting $f"
-              tmp=$(mktemp --suffix=.html)
               staticrypt "$f" \
                 --password "$STATICRYPT_PASSWORD" \
-                -o "$tmp" \
-                --short \
+                -o "${f}.enc" \
                 --template-title "Cheshire Horse Tools" \
                 --template-instructions "Enter the tools password to continue." \
-                --remember 1
-              mv "$tmp" "$f"
+                --remember 1 \
+                && mv "${f}.enc" "$f" \
+                || { echo "FAILED on $f"; exit 1; }
             done
           echo "Done. First 5 lines of root index.html:"
           head -5 ./index.html
