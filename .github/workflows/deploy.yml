@@ -32,19 +32,27 @@ jobs:
         run: npm install -g staticrypt
 
       - name: Encrypt all HTML files
+        env:
+          STATICRYPT_PASSWORD: ${{ secrets.SITE_PASSWORD }}
         run: |
+          echo "staticrypt version: $(staticrypt --version)"
           find . -name "*.html" \
             -not -path "./.git/*" \
             -not -path "./node_modules/*" \
             | while read f; do
+              echo "Encrypting $f"
+              tmp=$(mktemp --suffix=.html)
               staticrypt "$f" \
-                --password "${{ secrets.SITE_PASSWORD }}" \
-                -o "$f" \
+                --password "$STATICRYPT_PASSWORD" \
+                -o "$tmp" \
                 --short \
                 --template-title "Cheshire Horse Tools" \
                 --template-instructions "Enter the tools password to continue." \
                 --remember 1
+              mv "$tmp" "$f"
             done
+          echo "Done. First 5 lines of root index.html:"
+          head -5 ./index.html
 
       - uses: actions/configure-pages@v5
 
